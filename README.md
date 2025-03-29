@@ -111,7 +111,78 @@ python ocl_tensor.py --save_dir ./checkpoints
 ```bash
 python ocl_tensor.py --load_checkpoint ./checkpoints/best_model.npz --save_dir ./checkpoints
 ```
+```bash
+lues --analyze-model-state
+Analyse von: manipulation_model.npz
+Enthaltene Variablen (7):
 
+• config
+  - Shape        : (1,)
+  - Dtype        : object
+  - Speichergröße: 0.01 KB
+  - Vorschau     : [b'\x80\x04\x95\xf7\x00\x00\x00\x00\x00\x00\x00}\x94(\x8c\x07max_len\x94K@\x8c\nbatch_size\x94K ...
+----------------------------------------
+• model_state
+  - Shape        : (1,)
+  - Dtype        : object
+  - Speichergröße: 0.01 KB
+  - Vorschau     : ...
+----------------------------------------
+• optimizer_state
+  - Shape        : (1,)
+  - Dtype        : object
+  - Speichergröße: 0.01 KB
+  - Vorschau     : ...
+----------------------------------------
+• tokenizer_vocab
+  - Shape        : (1,)
+  - Dtype        : object
+  - Speichergröße: 0.01 KB
+  - Vorschau     : [b'\x80\x04\x95O\x01\x00\x00\x00\x00\x00\x00}\x94(\x8c\x01\n\x94K\x01\x8c\x01 ...
+----------------------------------------
+• tokenizer_inv_vocab
+  - Shape        : (1,)
+  - Dtype        : object
+  - Speichergröße: 0.01 KB
+  - Vorschau     : [b'\x80\x04\x95O\x01\x00\x00\x00\x00\x00\x00}\x94(K\x01\x8c\x01\n\x94K\x02\x8c\x01 ...
+----------------------------------------
+• epoch
+  - Shape        : (1,)
+  - Dtype        : int32
+  - Speichergröße: 0.00 KB
+  - Vorschau     : [1]
+----------------------------------------
+• best_val_loss
+  - Shape        : (1,)
+  - Dtype        : float64
+  - Speichergröße: 0.01 KB
+  - Vorschau     : [4.01334411]
+----------------------------------------
+
+📊 Analyse von `model_state`:
+  • param_0                        | Shape: (53, 64) | Dtype: float32
+  • param_1                        | Shape: (64, 64) | Dtype: float32
+  • param_2                        | Shape: (64, 64) | Dtype: float32
+  • param_3                        | Shape: (64, 64) | Dtype: float32
+  • param_4                        | Shape: (64, 64) | Dtype: float32
+  • param_5                        | Shape: (1, 64) | Dtype: float32
+  • param_6                        | Shape: (64, 256) | Dtype: float32
+  • param_7                        | Shape: (1, 256) | Dtype: float32
+  • param_8                        | Shape: (256, 64) | Dtype: float32
+  • param_9                        | Shape: (1, 64) | Dtype: float32
+  • param_10                       | Shape: (64, 64) | Dtype: float32
+  • param_11                       | Shape: (64, 64) | Dtype: float32
+  • param_12                       | Shape: (64, 64) | Dtype: float32
+  • param_13                       | Shape: (64, 64) | Dtype: float32
+  • param_14                       | Shape: (1, 64) | Dtype: float32
+  • param_15                       | Shape: (64, 256) | Dtype: float32
+  • param_16                       | Shape: (1, 256) | Dtype: float32
+  • param_17                       | Shape: (256, 64) | Dtype: float32
+  • param_18                       | Shape: (1, 64) | Dtype: float32
+  • param_19                       | Shape: (64, 53) | Dtype: float32
+  • param_20                       | Shape: (1, 53) | Dtype: float32
+
+```
 ---
 
 ## Einschränkungen und bekannte Probleme
