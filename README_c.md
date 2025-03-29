@@ -264,9 +264,11 @@ Die folgenden Operationen werden über die exportierten `execute_*` Funktionen b
 
 Beiträge sind willkommen! Bitte melden Sie Probleme oder reichen Sie Pull Requests im entsprechenden Repository ein (falls vorhanden). Halten Sie sich an gängige Coding Conventions und dokumentieren Sie Ihren Code.
 
+---
+
 ## Lizenz
 
-[Hier Lizenz angeben, z. B. MIT, Apache 2.0] - Wenn keine Lizenz angegeben ist, liegt der Code möglicherweise unter proprietären Bedingungen oder ist nicht zur Weiterverwendung freigegeben.
+Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
 
 ---
 
