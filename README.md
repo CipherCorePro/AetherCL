@@ -1,259 +1,205 @@
-**AetherCL**
+# OCL-LLM-Framework: Ein Experimentelles LLM-Framework mit OpenCL-Beschleunigung
+
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Füge hier ggf. weitere Badges hinzu -->
+
+**Ein experimentelles Framework für das Training und die Inferenz von einfachen Large Language Models (LLMs), das GPU-Beschleunigung über benutzerdefinierte OpenCL-Kernel demonstriert.**
 
 ---
 
-AetherCL ist eine GPU-Treiber-Simulations-Engine mit echter OpenCL-Interop, die Host↔GPU-Transfers, Kernel-Dispatch und Matrixoperationen realitätsnah abbildet. Ideal für Forschung, Deep-Learning-Prototyping und GPU-Architektursimulation. Plattformübergreifend, erweiterbar, bildungstauglich.
+## Übersicht
+
+Dieses Projekt ist ein von Grund auf neu aufgebautes Framework zur Erstellung und zum Training einfacher Transformer-basierter Sprachmodelle. Anstatt sich auf etablierte Deep-Learning-Bibliotheken wie PyTorch oder TensorFlow zu verlassen, implementiert dieses Projekt die Kernkomponenten (Tensor-Operationen, Autograd, Layer, Optimizer) selbst.
+
+Das Hauptziel ist die **Demonstration und Erforschung der GPU-Beschleunigung mittels OpenCL**. Die rechenintensiven Operationen werden durch eine benutzerdefinierte C-Bibliothek (`driver.dll` / `libdriver.so`) bereitgestellt, die optimierte OpenCL-Kernel für kompatible GPUs ausführt. Die Python-Schicht kümmert sich um die Modelllogik, den Trainingsprozess und die Interaktion mit der C/OpenCL-Backend-Bibliothek.
+
+**Dieses Projekt dient primär als Lern- und Demonstrationswerkzeug und ist nicht für den produktiven Einsatz im Vergleich zu ausgereiften Frameworks gedacht.**
 
 ---
 
-### 📘 Ausführliche `README.md` (Version 1.0, inklusive Diagramm-GIF-Platzhalter)
+## Hauptmerkmale
 
-# AetherCL – Simulierte GPU-Engine mit OpenCL-Interop
-
-**AetherCL** ist eine experimentelle, modulare C-basierte GPU-Treiber-Simulation mit echter Host↔GPU-Speicherinteraktion via OpenCL. Sie dient als Forschungssystem für Deep Learning, GPU-Architekturverständnis und realistische Prototyping-Szenarien – z. B. für Matrixoperationen, Kernel-Simulation oder Speicherverifikation.
-
----
-
-## 🔍 Features
-
-- ✅ Simulierte GPU-Speicherallokation (Host malloc + OpenCL Buffers)
-- ✅ OpenCL-basierte Host→GPU→Host Transfers
-- ✅ Matrixmultiplikation auf CPU mit echten GPU-Buffern
-- ✅ Asynchrones Readback mit `clSetEventCallback`
-- ✅ Rückgabe von Ergebnispuffern an Python über ctypes
-- ✅ Modularer Aufbau mit klarer Host-/GPU-Trennung
-- ✅ Kompatibel mit Windows, Linux (macOS optional)
-- ✅ Ideal als LLM-Beschleuniger- oder Custom-Treiber-Basis
-
----
-
-## 🧠 Zielsetzung
-
-AetherCL richtet sich an:
-
-- AI/ML-Forscher, die eigene Deep Learning Engines aufbauen
-- Studierende, die GPU-Architektur realitätsnah verstehen wollen
-- Entwickler, die OpenCL-basiertes Speicher- und Kernelmanagement simulieren
-- Prototyping von Speicherpipelines, MMIO-Systemen, simulierten Dispatch-Systemen
-
----
-
-## 🧪 Beispiel: Matrixmultiplikation via `simulated_matrix_multiply`
-
-```python
-A = np.random.rand(5, 4)
-B = np.random.rand(4, 6)
-C_addr = gpu.simulated_matrix_multiply(mmap_ptr_a, mmap_ptr_b, size_a, size_b, shape_a, shape_b)
-C = gpu.read_data(C_addr, shape=(5, 6), dtype=np.float64)
-```
-
-![Architektur-Diagramm](docs/aethercl_architecture.png)
-
-> 💡 *Die Matrixmultiplikation erfolgt CPU-seitig, aber über echte OpenCL-GPU-Puffer, mit späterem asynchronem Readback!*
+*   **Benutzerdefinierte OpenCL-Kernel:** Hardware-beschleunigte Implementierungen für kritische Operationen:
+    *   Matrixmultiplikation (Standard & Batched)
+    *   Elementweise Operationen (Add, Mul, GeLU)
+    *   Layer Normalization
+    *   Softmax
+    *   Transpose (Optimiert für spezifische Fälle: 2D, Letzte zwei Dimensionen, 4D (1<->2))
+    *   Adam Optimizer Update Step
+    *   (Weitere Kernels können in der C-Bibliothek vorhanden sein)
+*   **Python Frontend:**
+    *   `OclTensor`: Eine Tensor-Klasse, die GPU-Speicher über die C-DLL verwaltet.
+    *   **Automatischer Differenzierungsmechanismus (Autograd):** Implementiert über Kontextobjekte zur Verfolgung von Operationen und Berechnung von Gradienten.
+    *   **Modellbausteine:** Implementierungen gängiger Layer:
+        *   `Linear`
+        *   `Embedding` (CPU-Lookup mit GPU-Parameter-Speicher)
+        *   `LayerNorm`
+        *   `MultiHeadAttention` (nutzt batched MatMul und Transpose-Kernel)
+        *   `PositionalEncoding` (CPU-basiert)
+        *   `TransformerBlock`
+        *   `SimpleModel`: Ein einfaches Transformer-Encoder-Modell.
+    *   **Optimizer:** `AdamOptimizer` mit GPU-beschleunigtem Update-Schritt.
+    *   **Tokenizer:** Einfacher zeichenbasierter `TinyTokenizer`.
+    *   **Trainings-Loop:** Standard-Trainings- und Validierungsloop mit Batchverarbeitung.
+    *   **Inferenz:** Möglichkeit zur Textgenerierung nach dem Training.
+*   **Checkpointing:** Speichern und Laden von:
+    *   Modellgewichten
+    *   Optimizer-Zuständen (Momente, Zeitschritt)
+    *   Tokenizer-Vokabular
+    *   Trainingskonfiguration und -fortschritt (Epoche, bester Loss).
+*   **GPU-unabhängiger Ansatz (theoretisch):** Nutzt OpenCL, das auf einer Vielzahl von GPUs (AMD, NVIDIA, Intel) laufen kann, sofern entsprechende Treiber und SDKs installiert sind.
 
 ---
 
-## 📐 Architektur
+## Architektur
 
-```plaintext
-┌──────────────┐        Host: Python (ctypes)
-│  numpy array │────┐
-└──────────────┘    │
-                    ▼
-           [simulated_kernel_write]
-                    │
-                    ▼
-          ┌────────────────────┐
-          │ Host Malloc Memory │ (simuliert mmap)
-          └────────────────────┘
-                    │
-                    ▼
-        [write_to_gpu → clEnqueueWriteBuffer]
-                    ▼
-          ┌───────────────────────┐
-          │ OpenCL GPU Buffer (A) │
-          └───────────────────────┘
-                         ...
-        [submit_command → CPU-MatMul]
-                         ...
-        [clEnqueueReadBuffer → callback]
-                    ▼
-           [simulated_kernel_read]
-                    ▼
-           Host-Puffer → NumPy
+Das Framework besteht aus zwei Hauptteilen:
 
-```
+1.  **Python Frontend (`ocl_tensor.py` oder dein Skriptname):**
+    *   Definiert die Modellarchitektur und die Trainingslogik.
+    *   Verwaltet den Lebenszyklus von `OclTensor`-Objekten.
+    *   Implementiert den Autograd-Mechanismus.
+    *   Ruft über `ctypes` die Funktionen der C/OpenCL-Bibliothek auf.
+2.  **C/OpenCL Backend (`driver.c` / `driver.dll`):**
+    *   Initialisiert die OpenCL-Umgebung (Plattform, Gerät, Kontext, Queue).
+    *   Kompiliert die OpenCL-Kernel (`.cl`-Code eingebettet als Strings).
+    *   Stellt C-Funktionen bereit, die von Python aufgerufen werden können, um:
+        *   GPU-Speicher zu allokieren/freizugeben.
+        *   Daten zwischen Host (CPU) und Device (GPU) zu kopieren.
+        *   Die kompilierten OpenCL-Kernel mit den entsprechenden Argumenten und Arbeitsdimensionen zu starten.
 
 ---
 
-## 🔧 Build
+## Technologie-Stack
 
-### Voraussetzungen
-
-- OpenCL SDK (z. B. Intel, AMD, POCL, NVIDIA)
-- GCC oder MSVC
-- Python 3.12 mit `ctypes`
-- Optional: `numpy` für die Python-Interaktion
-
-### Kompilieren (Windows/GCC Beispiel)
-
-```bash
-gcc -I. -L. -shared -o simulated_driver.dll simulated_driver.c -lOpenCL -static-libgcc -static-libstdc++ -Wl,--export-all-symbols
-```
+*   **Sprache:** Python 3.x, C (für die DLL)
+*   **Bibliotheken:** NumPy, ctypes (Python Standard Library)
+*   **GPU-Beschleunigung:** OpenCL 1.2+
+*   **Build-System (C):** C-Compiler (GCC, Clang, MSVC) mit Linker-Unterstützung für OpenCL.
 
 ---
 
-## 🧪 Testen mit Python
+## Setup & Installation
 
-```bash
-python app.py
-```
+**Voraussetzungen:**
 
-> Die Ausgabe zeigt detailreich den Ablauf jeder GPU-Simulation – von Allokation über Matrixmultiplikation bis zum Readback.
-```
-Versuche, simulierten Treiber zu laden von: G:\amd LLM Treiber code\simulated_driver.dll
-Simulierter Treiber erfolgreich geladen.
-C-Funktionssignaturen erfolgreich definiert.
-Treiber-Shutdown-Funktion für atexit registriert.
+1.  **Python:** Version 3.7 oder höher (Anaconda empfohlen).
+2.  **NumPy:** `pip install numpy` (oft schon in Anaconda enthalten).
+3.  **C-Compiler:** Ein funktionierender C-Compiler (z.B. GCC unter Linux, MSVC unter Windows, Clang unter macOS/Linux).
+4.  **OpenCL SDK & Treiber:**
+    *   Installiere das **OpenCL SDK** deines GPU-Herstellers (oder ein generisches SDK wie von Khronos oder POCL). Dies stellt die Header-Dateien (`CL/cl.h`) und die OpenCL-Importbibliothek (`OpenCL.lib` / `libOpenCL.so`) bereit.
+    *   Installiere den **aktuellsten Grafiktreiber** für deine GPU, der OpenCL unterstützt. Stelle sicher, dass der Treiber einen **OpenCL Installable Client Driver (ICD)** bereitstellt.
 
---- Start des Hauptprogramms (mit mmap-basiertem Treiber) ---
-Initialisiere GPUManager...
-Simuliere GPU-Anzahl (fest auf 1).
-Manager: 1 GPU(s) gefunden (simuliert).
-Simuliere CU-Anzahl für GPU 0 (fest auf 2560).
-Manager: Erstelle GPU-Objekt für Index 0 mit 2560 CUs.
-GPU Objekt 0 erstellt (CUs: 2560).
-GPUManager Initialisierung abgeschlossen.
+**Bauen der C/OpenCL DLL:**
 
-Verfügbare GPUs im Manager: 1
+Navigiere in das Verzeichnis, das die C-Quelldatei (`driver.c`) enthält, und kompiliere sie. Der genaue Befehl hängt von deinem Compiler und Betriebssystem ab. Hier sind Beispiele:
 
---- Operationen auf GPU 0 ---
-GPU 0: Fordere Initialisierung über Treiber an...
-initialize_gpu: Initialisierung erfolgreich (Context: 00000081a47f8980, Queue: 00000081a2da79e0).
-GPU 0: Treiber-Initialisierung erfolgreich.
+*   **GCC / Clang (Linux / macOS):**
+    ```bash
+    # Passe FP_TYPE ggf. an (z.B. double) und stelle sicher, dass -I auf dein OpenCL Include-Verzeichnis zeigt
+    # Entferne ggf. -Werror, falls es Probleme mit Atomics-Warnungen gibt
+    gcc driver.c -o libdriver.so -shared -fPIC -Wall -Wextra -O3 -D FP_TYPE=float -I/pfad/zum/opencl/include -lOpenCL
+    # oder clang
+    clang driver.c -o libdriver.so -shared -fPIC -Wall -Wextra -O3 -D FP_TYPE=float -I/pfad/zum/opencl/include -lOpenCL
+    ```
+*   **MSVC (Windows):**
+    ```bash
+    # Öffne eine Developer Command Prompt für VS
+    # Passe FP_TYPE ggf. an und stelle sicher, dass /I auf dein OpenCL Include- und /LIBPATH auf dein Lib-Verzeichnis zeigt
+    # Entferne ggf. /WX (behandelt Warnungen als Fehler), falls es Probleme mit Atomics-Warnungen gibt
+    cl driver.c /O2 /W3 /D FP_TYPE=float /I "C:\Pfad\zum\OpenCL\include" /link /DLL /OUT:driver.dll "C:\Pfad\zum\OpenCL\lib\x64\OpenCL.lib"
+    ```
 
-Host: Erstelle Matrizen...
-Host: Matrix A (shape=(5, 4), dtype=float64)
-Host: Matrix B (shape=(4, 6), dtype=float64)
+**Wichtig:**
+*   Stelle sicher, dass die resultierende DLL/Shared Object (`driver.dll` oder `libdriver.so`) im selben Verzeichnis wie das Python-Skript (`ocl_tensor.py` oder dein Skriptname) liegt oder passe den Pfad im Skript an.
+*   Der `FP_TYPE`-Define im C-Compiler-Befehl **muss** mit `KERNEL_FP_TYPE` in der C-Datei und `FP_TYPE` im Python-Skript übereinstimmen (standardmäßig `float`).
 
-Host: Alloziere Speicher auf GPU für Matrizen...
-GPU 0: Fordere Allokation von 160 Bytes an...
-[C Driver][simulated_kernel_allocate] GPU 0 - Simuliert (malloc) 160 bytes bei 00000081a1fb2620
-GPU 0: Allokation erfolgreich, Adresse erhalten: 556768372256
-GPU 0: Fordere Allokation von 192 Bytes an...
-[C Driver][simulated_kernel_allocate] GPU 0 - Simuliert (malloc) 192 bytes bei 00000081a1fba5b0
-GPU 0: Allokation erfolgreich, Adresse erhalten: 556768404912
-Host: 'GPU'-Adressen erhalten: A=556768372256, B=556768404912
+**Datensatz:**
 
-Host: Schreibe Daten in den GPU-Speicher...
-GPU 0: Fordere Schreiben von 160 Bytes an Adresse 556768372256 an...
-[C Driver][simulated_kernel_write] Kopiere 160 Bytes von Host-Quelle 00000081a2e951b0 nach Host-Ziel 00000081a1fb2620 (addr 556768372256)
-[C Driver]   Host-zu-Host-Kopie (simulated_kernel_write) abgeschlossen.
-GPU 0: Schreibanforderung gesendet.
-GPU 0: Fordere Schreiben von 192 Bytes an Adresse 556768404912 an...
-[C Driver][simulated_kernel_write] Kopiere 192 Bytes von Host-Quelle 00000081a5576f90 nach Host-Ziel 00000081a1fba5b0 (addr 556768404912)
-[C Driver]   Host-zu-Host-Kopie (simulated_kernel_write) abgeschlossen.
-GPU 0: Schreibanforderung gesendet.
-Host: Daten erfolgreich zur GPU geschrieben (simuliert).
-
-Host: Starte Kernel 'matrix_multiply' auf GPU...
-GPU 0: Fordere Ausführung von Kernel 'matrix_multiply' an...
-[C Driver] simulated_matrix_multiply gestartet für GPU 0.
-[C Driver][sim_matmul] Matrix A Shape: (5, 4), Size: 160
-[C Driver][sim_matmul] Matrix B Shape: (4, 6), Size: 192
-[C Driver][sim_matmul] Ergebnis Matrix C Shape: (5, 6), Size: 240
-[C Driver][allocate_gpu_memory] OpenCL Buffer erstellt (handle=00000081a54d2250), Size=160
-[C Driver][allocate_gpu_memory] OpenCL Buffer erstellt (handle=00000081a54d2d90), Size=192
-[C Driver][allocate_gpu_memory] OpenCL Buffer erstellt (handle=00000081a5512750), Size=240
-[C Driver][sim_matmul] Übertrage Daten von Host nach GPU...
-[C Driver][write_to_gpu] Starte clEnqueueWriteBuffer: 160 Bytes von Host 00000081a1fb2620 nach GPU 00000081a54d2250
-[C Driver][write_to_gpu] Erfolgreich 160 Bytes von Host 00000081a1fb2620 nach GPU Puffer 00000081a54d2250 geschrieben
-[C Driver][write_to_gpu] Starte clEnqueueWriteBuffer: 192 Bytes von Host 00000081a1fba5b0 nach GPU 00000081a54d2d90
-[C Driver][write_to_gpu] Erfolgreich 192 Bytes von Host 00000081a1fba5b0 nach GPU Puffer 00000081a54d2d90 geschrieben
-[C Driver][sim_matmul] Datenübertragung Host->GPU abgeschlossen.
-[C Driver][sim_matmul] Sende Matrixmultiplikations-Befehl (Simulation)...
-[C Driver][submit_command] Starte CPU-Matrixmultiplikation (Simulation)...
-[C Driver][submit_command] CPU-Matrixmultiplikation abgeschlossen.
-[C Driver][submit_command] Matrixmultiplikations-Simulation erfolgreich abgeschlossen.
-[C Driver][sim_matmul] Matrixmultiplikations-Befehl abgeschlossen (Status: 1).
-[C Driver][sim_matmul] Starte asynchronen Readback GPU Puffer C -> Host...
-[C Driver]   Host-Ergebnispuffer allokiert bei 00000081a1fbb690
-[C Driver]   Non-blocking Read eingereiht (Event: 00000081a46fc2b0). Setze Callback.
-[C Driver]   Callback registriert für Event 00000081a46fc2b0.
-[C Driver]   Warte auf Beendigung der Command Queue (clFinish)...
-[C Driver][Callback GPU 0] Readback event (00000081a46fc2b0) abgeschlossen. Status: CL_SUCCESS (0)
-[C Driver][Callback GPU 0] Daten lesen in Host-Puffer abgeschlossen.
-[C Driver][Callback GPU 0] Callback beendet.
-[C Driver]   Command Queue beendet (Status: CL_SUCCESS).
-[C Driver][sim_matmul] Bereinige GPU Puffer...
-[C Driver][free_gpu_memory] OpenCL Buffer freigegeben (handle=00000081a54d2250)
-[C Driver][free_gpu_memory] OpenCL Buffer freigegeben (handle=00000081a54d2d90)
-[C Driver][free_gpu_memory] OpenCL Buffer freigegeben (handle=00000081a5512750)
-[C Driver][sim_matmul] Matrixmultiplikation erfolgreich. Gebe Host-Adresse zurück: 556768409232 (00000081a1fbb690)
-GPU 0: Kernel 'matrix_multiply' erfolgreich (simuliert), Ergebnisadresse: 556768409232
-Host: Kernel beendet. Ergebnis an GPU-Adresse: 556768409232
-
-Host: Lese Ergebnis von GPU zurück zum Host...
-GPU 0: Fordere Lesen von 240 Bytes von Adresse 556768409232 an...
-[C Driver][simulated_kernel_read] Kopiere 240 Bytes von Host Addr 556768409232 (00000081a1fbb690) nach Python Dest 00000081a48fb4f0
-[C Driver]   Gebe Host Ergebnispuffer frei bei 00000081a1fbb690
-[C Driver]   Lesen/Kopieren von Host abgeschlossen.
-GPU 0: Leseanforderung abgeschlossen.
-
---- Ergebnis der Matrixmultiplikation (vom simulierten Treiber berechnet/gelesen) ---
-Shape: (5, 6), Dtype: float64
-[[0.72470531 0.53853531 1.04054047 0.6923406  0.81253766 1.16930091]
- [0.95457385 0.40580491 1.08629638 0.93634127 0.88719397 0.97491993]
- [0.76286833 0.31892414 0.92117509 0.91012526 0.80013112 0.99433272]
- [1.91374926 0.9449003  2.30844999 1.97723782 1.65517081 2.214666  ]
- [1.25484958 0.4630622  1.4020248  1.42356855 1.00587981 1.29352593]]
-
-Host: Verifiziere mit NumPy...
-VERIFIKATION ERFOLGREICH: Ergebnis vom Treiber stimmt mit NumPy überein.
-
-Host: Gebe Speicher auf GPU frei...
-GPU 0: Fordere Freigabe von 240 Bytes an Adresse 556768409232 an...
-[C Driver][simulated_kernel_free] GPU 0 - Simuliert (free) 240 bytes bei 00000081a1fbb690
-```
-
-## 📁 Projektstruktur
-
-```plaintext
-├── simulated_driver.c         # Simulierter C-Treiber mit OpenCL-Bindung
-├── app.py                     # Python Test Harness
-├── README.md                  # Diese Datei
-├── docs/
-│   └── aethercl_architecture.png   # Diagramm (optional auch als GIF)
-└── simulated_driver.dll       # Kompilierte Shared Library
-```
+*   Erstelle eine Textdatei namens `input.txt` im selben Verzeichnis wie dein Python-Skript. Füge hier deinen Trainings-Textkorpus ein (z.B. Code, Prosa, der Buchauszug). Je größer und diverser, desto besser lernt das Modell tendenziell.
 
 ---
 
-## 🚀 Nächste Schritte (Vision)
+## Verwendung
 
-- Echte GPU-Matrixkernel mit OpenCL C
-- Simuliertes MMIO-Interface mit `mmap`
-- Integration eines Memory Schedulers (z. B. für LLM)
-- Erweiterung um Softmax, Conv2D, ReLU etc.
-- Komplettes Command Dispatch System mit Scheduler-Logik
+Das Framework wird über die Kommandozeile gesteuert (ersetze `ocl_tensor.py` mit dem Namen deines Python-Skripts).
+
+**1. Training von Grund auf starten:**
+
+*   **Mit Standard-GPU (Index 0):**
+    ```bash
+    python ocl_tensor.py --save_dir ./checkpoints
+    ```
+*   **Mit spezifischer GPU (z.B. Index 1):**
+    ```bash
+    python ocl_tensor.py --save_dir ./checkpoints --gpu_id 1
+    ```
+
+    *   Dies startet das Training mit den im Skript definierten Standard-Hyperparametern auf der ausgewählten GPU.
+    *   Checkpoints (insbesondere das Modell mit dem besten Validierungsverlust) werden im Verzeichnis, das mit `--save_dir` angegeben wurde (standardmäßig `./checkpoints`), als `best_model.npz` gespeichert.
+
+**2. Training von einem Checkpoint fortsetzen:**
+
+*   **Mit Standard-GPU (Index 0):**
+    ```bash
+    python ocl_tensor.py --load_checkpoint ./checkpoints/best_model.npz --save_dir ./checkpoints
+    ```
+*   **Mit spezifischer GPU (z.B. Index 1):**
+    ```bash
+    python ocl_tensor.py --load_checkpoint ./checkpoints/best_model.npz --save_dir ./checkpoints --gpu_id 1
+    ```
+
+    *   Lädt das Modell, den Optimizer-Zustand und den Trainingsfortschritt aus der angegebenen `.npz`-Datei.
+    *   Setzt das Training ab der gespeicherten Epoche auf der ausgewählten GPU fort.
+    *   Speichert weiterhin verbesserte Checkpoints in `--save_dir`.
+
+**Hinweis zur GPU-Auswahl:**
+*   Der `--gpu_id`-Parameter wählt das OpenCL-Gerät basierend auf dem Index aus, den die OpenCL-Implementierung auf deinem System vergibt. `0` ist normalerweise das Standardgerät.
+*   Du kannst Tools wie `clinfo` (Linux) oder herstellerspezifische Tools verwenden, um die verfügbaren Geräte und ihre Indizes aufzulisten. Die Initialisierungsausgabe des Skripts (`[C] initialize_gpu: Using device index X: ...`) zeigt ebenfalls an, welches Gerät tatsächlich verwendet wird.
+
+**3. Inferenz:**
+
+*   Die Inferenz wird automatisch am Ende des Trainings (sowohl beim Start von Grund auf als auch beim Fortsetzen) und periodisch während des Trainings ausgeführt (standardmäßig alle 10 Epochen).
+*   Es wird ein Beispieltext ("opencl test") verwendet, um die Textgenerierungsfähigkeit des aktuellen Modells zu demonstrieren.
 
 ---
 
-## 🤝 Lizenz
+## Konfiguration
 
-MIT License – Frei verwendbar für Lehre, Forschung, Entwicklung.
+Die wichtigsten Hyperparameter für das Modell und das Training können direkt im `train()`-Funktionsteil des Python-Skripts (`ocl_tensor.py` oder dein Skriptname) im `config`-Dictionary angepasst werden:
+
+*   `max_len`: Maximale Sequenzlänge.
+*   `batch_size`: Anzahl der Sequenzen pro Trainingsschritt.
+*   `embed_dim`: Dimension der Token- und Positionseinbettungen.
+*   `num_heads`: Anzahl der Köpfe in der Multi-Head Attention.
+*   `d_ff`: Dimension der Feed-Forward-Netzwerke in den Transformer-Blöcken.
+*   `num_layers`: Anzahl der Transformer-Blöcke.
+*   `lr`: Lernrate für den Adam-Optimizer.
+*   `num_epochs`: Anzahl der Trainingsepochen.
+*   `wd`: Gewichtungszerfall (Weight Decay) für den Adam-Optimizer.
+*   `val_split`: Anteil der Daten, der für die Validierung verwendet wird.
+*   `data_file`: Pfad zur Trainings-Textdatei.
+*   `checkpoint_filename`: Dateiname für den besten gespeicherten Checkpoint.
 
 ---
 
-## 🧠 Inspiration
+## Bekannte Einschränkungen & Workarounds
 
-Dieses Projekt entstand aus der Vision, GPU-Verhalten auf systemnaher Ebene verständlich und kontrolliert zu simulieren – als Lernhilfe, Experimentierplattform und Brückentechnologie für AI-Systeme jenseits etablierter Frameworks wie CUDA oder TensorFlow.
+*   **CPU-Bottlenecks:** Bestimmte Operationen laufen (noch) auf der CPU, was die Gesamtleistung limitieren kann:
+    *   Embedding-Lookup und dessen Gradientenberechnung (Scatter-Add). **Achtung:** Wenn die GPU keine Atomics unterstützt (wie im Log bei GPU 1 angezeigt), kann der Embedding-Backward-Schritt zu **fehlerhaften Gradienten** führen, wenn `-Werror` beim Kompilieren entfernt wurde.
+    *   Cross-Entropy-Loss-Berechnung und der initiale Gradient für den Backward-Pass.
+    *   Gradienten-Reduktion für Broadcasting-Operationen (z.B. beim Addieren von Bias oder Positional Encoding).
+    *   Transpose-Operationen für Achsenkombinationen, die nicht durch dedizierte Kernel abgedeckt sind.
+*   **Kein Dropout:** Dropout-Layer sind derzeit nicht implementiert.
+*   **Einfacher Tokenizer:** Verwendet einen einfachen zeichenbasierten Tokenizer. Für komplexere Aufgaben wären Subword-Tokenizer (wie BPE oder WordPiece) erforderlich.
+*   **Checkpoint-Kompatibilität:** Das Laden von Checkpoints funktioniert nur, wenn die Modellarchitektur (Anzahl Layer, Dimensionen etc.) exakt mit der beim Speichern übereinstimmt, da die Parameter anhand ihrer Reihenfolge geladen werden.
+*   **Feste Präzision:** Das Framework ist derzeit auf `float32` (`FP_TYPE`) festgelegt. Eine Änderung erfordert Anpassungen im Python- *und* C-Code sowie eine Neukompilierung der DLL.
 
 ---
 
-## 📷 Beispiel-Visualisierung
+## Lizenz
 
-
+Dieses Projekt steht unter der MIT-Lizenz. Siehe die `LICENSE`-Datei für Details. (Füge eine `LICENSE`-Datei mit dem MIT-Lizenztext hinzu).
 
 ---
 
+**Viel Spaß beim Experimentieren mit OpenCL und LLMs!**
