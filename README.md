@@ -1,14 +1,10 @@
-
-
 # OCL-LLM-Framework: Ein OpenCL-beschleunigtes Framework für das Training von Large Language Models (LLMs)
-
-[![Lizenz: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Version:** v1.0 – Produktionsreif
 
 ## Übersicht
 
-Das **OCL-LLM-Framework** ist ein leistungsfähiges, Python-basiertes Framework zur Erstellung, dem Training und der Inferenz von Transformer-basierten Sprachmodellen (LLMs). Im Gegensatz zu etablierten Deep-Learning-Frameworks wie PyTorch oder TensorFlow nutzt dieses Framework OpenCL zur GPU-Beschleunigung und ermöglicht eine breite Hardwarekompatibilität (AMD, Intel, NVIDIA GPUs). 
+Das **OCL-LLM-Framework** ist ein leistungsfähiges, Python-basiertes Framework zur Erstellung, dem Training und der Inferenz von Transformer-basierten Sprachmodellen (LLMs). Im Gegensatz zu etablierten Deep-Learning-Frameworks wie PyTorch oder TensorFlow nutzt dieses Framework OpenCL zur GPU-Beschleunigung und ermöglicht eine breite Hardwarekompatibilität (AMD, Intel, NVIDIA GPUs).
 
 Das Framework wurde speziell entwickelt, um OpenCL als universelle Lösung für die GPU-Beschleunigung zu nutzen und ist vollständig funktionsfähig. Alle wichtigen LLM-Komponenten (Tensor-Operationen, Autograd, Layer, Optimierer) sind optimiert und implementiert, wobei OpenCL den Hauptmechanismus für die Hardwarebeschleunigung bildet.
 
@@ -50,7 +46,7 @@ Der Fokus dieses Projekts liegt auf **hoher Performance**, **Vielseitigkeit** un
     *   Optimizer-Zuständen (Momente, Zeitschritt)
     *   Tokenizer-Vokabular
     *   Trainingskonfiguration und -fortschritt (Epoche, bester Loss).
-*   **Optimierung:** 
+*   **Optimierung:**
     *   **Optimierte OpenCL-Kernel** für jede Operation.
     *   **Dynamische Erkennung** und Nutzung von GPU-Features zur Laufzeit (z. B. atomare Operationen, Transpose).
     *   Verwendung von OpenCL für die GPU-Beschleunigung auf einer Vielzahl von Hardwareplattformen (AMD, NVIDIA, Intel).
@@ -91,7 +87,7 @@ Navigiere in das Verzeichnis, das die C-Quelldatei (`driver.c`) enthält, und ko
     ```
 
 **Wichtig:**
-*   Stelle sicher, dass die resultierende DLL/Shared Object (`driver.dll` oder `libdriver.so`) im selben Verzeichnis wie das Python-Skript (`ocl_tensor.py` oder dein Skriptname) liegt oder passe den Pfad im Skript (`dll_path`) an.
+*   Stelle sicher, dass die resultierende DLL/Shared Object (`driver.dll` oder `libdriver.so`) im selben Verzeichnis wie das Python-Skript (`ocl_tensor.py` oder dein Hauptskript) liegt oder passe den Pfad im Skript (`dll_path`) an.
 *   Der `KERNEL_FP_TYPE`-Define im C-Compiler-Befehl **muss** mit `KERNEL_FP_TYPE` in der C-Datei und `FP_TYPE` im Python-Skript übereinstimmen (standardmäßig `float`).
 
 ---
@@ -111,8 +107,13 @@ python ocl_tensor.py --save_dir ./checkpoints
 ```bash
 python ocl_tensor.py --load_checkpoint ./checkpoints/best_model.npz --save_dir ./checkpoints
 ```
-```bash
-lues --analyze-model-state
+
+**3. Analyse eines Checkpoints (Beispielausgabe):**
+
+```
+$ python your_analysis_script.py --analyze-model-state ./checkpoints/manipulation_model.npz 
+# (oder ähnliches Kommando, je nach Implementierung)
+
 Analyse von: manipulation_model.npz
 Enthaltene Variablen (7):
 
@@ -181,8 +182,8 @@ Enthaltene Variablen (7):
   • param_18                       | Shape: (1, 64) | Dtype: float32
   • param_19                       | Shape: (64, 53) | Dtype: float32
   • param_20                       | Shape: (1, 53) | Dtype: float32
-
 ```
+
 ---
 
 ## Einschränkungen und bekannte Probleme
@@ -195,11 +196,11 @@ Enthaltene Variablen (7):
 
 ## FAQ (Häufig gestellte Fragen)
 
-**F: Warum OpenCL statt CUDA?**  
+**F: Warum OpenCL statt CUDA?**
 **A:** OpenCL wurde gewählt, um die Portabilität über verschiedene GPU-Hersteller (AMD, NVIDIA, Intel) hinweg zu gewährleisten und als flexiblere Lösung ohne Abhängigkeit von CUDA.
 
-**F: Wie ist die Leistung im Vergleich zu TensorFlow/PyTorch?**  
-**A:** Dieses Framework bietet eine **hohe Leistung** auf OpenCL-kompatibler Hardware und ist **gleichwertig oder schneller** als viele CUDA-basierte Alternativen, wenn es richtig implementiert ist. Es ist ein voll funktionsfähiges Framework, das aber **offiziell nicht mit TensorFlow/PyTorch konkurriert**, da diese Frameworks tiefgehende Optimierungen und eine breitere Benutzerbasis bieten.
+**F: Wie ist die Leistung im Vergleich zu TensorFlow/PyTorch?**
+**A:** Dieses Framework bietet eine **hohe Leistung** auf OpenCL-kompatibler Hardware und kann bei korrekter Implementierung **gleichwertig oder schneller** als manche CUDA-basierte Alternativen sein. Es ist ein voll funktionsfähiges Framework, das aber **offiziell nicht mit TensorFlow/PyTorch konkurriert**, da diese Frameworks tiefgehende Optimierungen und eine breitere Benutzerbasis bieten.
 
 ---
 
