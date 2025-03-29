@@ -1,7 +1,13 @@
-# -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Lizenz
-# Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
-# -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Lizenz:
+// Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz.
+// Du darfst den Code unter den folgenden Bedingungen nutzen:
+// 1. **Namensnennung (Attribution):** Du musst den Urheber des Werkes nennen und einen Hinweis auf die Lizenz geben.
+// 2. **Nicht kommerziell (Non-commercial):** Der Code darf nicht für kommerzielle Zwecke verwendet werden.
+//
+// Weitere Informationen zur Lizenz findest du unter: https://creativecommons.org/licenses/by-nc/4.0/
+// -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 import sys
 import math
 import ctypes
