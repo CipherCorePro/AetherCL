@@ -213,12 +213,13 @@ Die Verfügbarkeit dieser Kernel hängt von der Implementierung in der `driver.d
 *   **Batch Size (Stapelgröße):** Die Anzahl der Trainingsbeispiele, die gleichzeitig in einem Forward- und Backward-Pass verarbeitet werden.
 *   **Epoch (Epoche):** Ein vollständiger Durchlauf durch den gesamten Trainingsdatensatz.
 
+---
+
 ## Lizenz
 
-[MIT License](LICENSE) <!-- Fügen Sie eine LICENSE-Datei hinzu und verlinken Sie sie -->
+Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
 
-*Dieses Projekt wird unter der MIT-Lizenz veröffentlicht. Weitere Informationen finden Sie in der LICENSE-Datei.*
-
+---
 ## Beitragende
 
 <!-- Optional: Fügen Sie Informationen hinzu, wie andere beitragen können -->
