@@ -134,7 +134,7 @@ python ocl_tensor.py --load_checkpoint ./checkpoints/best_model.npz --save_dir .
 
 ## Lizenz
 
-Dieses Projekt steht unter der MIT-Lizenz. Siehe die `LICENSE`-Datei für Details.
+Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
 
 ---
 
