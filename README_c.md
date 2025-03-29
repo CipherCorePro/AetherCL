@@ -91,9 +91,9 @@ Die Bibliothek folgt einem typischen Workflow für die GPU-Beschleunigung:
 7.  **Aufräumen:** Rufen Sie `shutdown_driver()` am Ende Ihres Programms auf, um alle OpenCL-Ressourcen (Kernel, Programme, Queue, Context) freizugeben.
 
 **Wichtig:**
-*   Alle exportierten Funktionen (`DLLEXPORT`) geben `1` für Erfolg und `0` für Fehler zurück (außer `allocate_gpu_memory`, das ein Handle oder `NULL` zurückgibt, und `free_gpu_memory`/`shutdown_driver`, die `void` sind). **Überprüfen Sie immer die Rückgabewerte!**
-*   Fehlermeldungen werden nach `stderr` geschrieben.
-*   Die zurückgegebenen Buffer-Handles von `allocate_gpu_memory` sind opake Pointer und sollten nicht direkt dereferenziert werden.
+*   Alle exportierten Funktionen (`DLLEXPORT`) geben `1` für Erfolg und `0` für Fehler zurück (außer `allocate_gpu_memory`, das ein Handle oder `NULL` zurückgibt, und `free_gpu_memory`/`shutdown_driver`, die `void` sind). **Überprüfen Sie immer die Rückgabewerte!** Dies ist entscheidend für die Fehlersuche und robuste Anwendungen.
+*   Fehlermeldungen werden nach `stderr` geschrieben. Überwachen Sie diesen Stream bei Problemen.
+*   Die zurückgegebenen Buffer-Handles von `allocate_gpu_memory` sind opake Pointer und sollten nicht direkt dereferenziert werden. Behandeln Sie sie als undurchsichtige Ressourcen-IDs.
 
 **Beispiel (Python mit ctypes - Pseudocode):**
 
@@ -165,7 +165,10 @@ c_gpu = lib.allocate_gpu_memory(gpu_id, C_host.nbytes)
 
 if not all([a_gpu, b_gpu, c_gpu]):
     print("GPU memory allocation failed.")
-    # TODO: Freigeben, was erfolgreich allokiert wurde
+    # Wichtig: Auch im Fehlerfall Ressourcen freigeben, die bereits allokiert wurden
+    if a_gpu: lib.free_gpu_memory(gpu_id, a_gpu)
+    if b_gpu: lib.free_gpu_memory(gpu_id, b_gpu)
+    if c_gpu: lib.free_gpu_memory(gpu_id, c_gpu)
     lib.shutdown_driver()
     exit(1)
 print(f"GPU Buffers allocated: A={a_gpu}, B={b_gpu}, C={c_gpu}")
@@ -203,14 +206,14 @@ except RuntimeError as e:
     print("Check stderr logs for more details from the C library.")
 
 finally:
-    # 6. Speicher freigeben
+    # 6. Speicher freigeben (Immer im finally-Block!)
     print("Freeing GPU memory...")
     if a_gpu: lib.free_gpu_memory(gpu_id, a_gpu)
     if b_gpu: lib.free_gpu_memory(gpu_id, b_gpu)
     if c_gpu: lib.free_gpu_memory(gpu_id, c_gpu)
     print("GPU Memory freed.")
 
-    # 7. Aufräumen
+    # 7. Aufräumen (Immer im finally-Block!)
     print("Shutting down driver...")
     lib.shutdown_driver()
     print("Driver shut down.")
@@ -258,7 +261,7 @@ Die folgenden Operationen werden über die exportierten `execute_*` Funktionen b
 *   `initialize_gpu` gibt `1` bei Erfolg, `0` bei Fehler zurück.
 *   `allocate_gpu_memory` gibt ein gültiges Handle (ungleich `NULL`) bei Erfolg und `NULL` bei Fehler zurück.
 *   Detaillierte Fehlermeldungen von OpenCL-Aufrufen oder interne Fehlerprüfungen werden nach `stderr` ausgegeben. Überprüfen Sie diese Ausgaben bei Problemen.
-*   Es liegt in der Verantwortung des Aufrufers, die Rückgabewerte zu prüfen und auf Fehler zu reagieren.
+*   Es liegt in der Verantwortung des Aufrufers, die Rückgabewerte zu prüfen und auf Fehler zu reagieren (z. B. durch Freigabe bereits allokierter Ressourcen).
 
 ## Mitwirkung
 
@@ -268,7 +271,7 @@ Beiträge sind willkommen! Bitte melden Sie Probleme oder reichen Sie Pull Reque
 
 ## Lizenz
 
-Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
+Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei (sofern vorhanden) für Details.
 
 ---
 
@@ -339,4 +342,4 @@ A: Die Leistung hängt stark von der Hardware, den Treiberversionen und den spez
 *   **PE (Positional Encoding):** Vektoren, die zu Eingabe-Embeddings hinzugefügt werden, um Informationen über die Position von Elementen in einer Sequenz zu kodieren (häufig in Transformern).
 *   **SDK (Software Development Kit):** Eine Sammlung von Werkzeugen, Bibliotheken und Dokumentationen zur Softwareentwicklung für eine bestimmte Plattform oder Technologie (z. B. OpenCL SDK).
 *   **ICD (Installable Client Driver):** Ein Mechanismus, der es mehreren OpenCL-Implementierungen (von verschiedenen Anbietern) ermöglicht, auf demselben System zu koexistieren. Der ICD Loader leitet API-Aufrufe an die richtige Implementierung weiter.
-
+```
