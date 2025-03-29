@@ -1,3 +1,7 @@
+# -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Lizenz
+# Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz. Siehe die `LICENSE`-Datei für Details.
+# -----------------------------------------------------------------------------------------------------------------------------------------------------------------
 import sys
 import math
 import ctypes
