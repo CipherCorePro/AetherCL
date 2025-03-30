@@ -886,7 +886,7 @@ Beiträge sind willkommen! Bitte beachte folgende Richtlinien:
 
 ## 11. Lizenz
 
-Dieses Projekt steht unter der MIT-Lizenz. Siehe die `LICENSE`-Datei (falls vorhanden) oder den Lizenztext unten für Details.
+Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0)-Lizenz. Siehe die `LICENSE`-Datei  oder den Lizenztext unten für Details.
 
 ```
 
