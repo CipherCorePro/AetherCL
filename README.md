@@ -1,4 +1,4 @@
-# OCL-LLM: OpenCL-Accelerated LLM Framework (Ultimate Build Attempt 8 - GPU Cross Entropy)
+# OCL-LLM: OpenCL-Accelerated LLM Framework - GPU Cross Entropy)
 
 **Eine grundlegende, von Grund auf neu entwickelte Bibliothek zur Beschleunigung von Operationen für Large Language Models (LLMs) mithilfe von OpenCL, mit Python-Bindings und automatischer Differenzierung (Autograd).**
 
