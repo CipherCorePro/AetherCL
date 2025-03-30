@@ -889,28 +889,30 @@ Beiträge sind willkommen! Bitte beachte folgende Richtlinien:
 Dieses Projekt steht unter der MIT-Lizenz. Siehe die `LICENSE`-Datei (falls vorhanden) oder den Lizenztext unten für Details.
 
 ```
-MIT License
 
-Copyright (c) [Jahr] [Name des Copyright-Inhabers]
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+# Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0)
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+## Lizenz
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+Dieses Werk ist unter der Lizenz **Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0)** lizenziert. Du darfst den Inhalt des Werkes unter den folgenden Bedingungen nutzen:
+
+1. **Namensnennung (Attribution):** Du musst den Namen des Urhebers oder der Urheberin sowie eine gültige Quellenangabe angeben. Dies kann in einer Art und Weise geschehen, die angemessen ist und den Zweck der Verwendung widerspiegelt. Du darfst dies jedoch nicht in einer Weise tun, die den Eindruck erweckt, dass der Urheber oder die Urheberin die Nutzung unterstützt oder mit der Nutzung in Verbindung steht.
+
+2. **Nicht kommerziell (Non-commercial):** Du darfst das Werk **nicht für kommerzielle Zwecke** nutzen. Kommerzielle Nutzung bedeutet jede Nutzung, die hauptsächlich darauf abzielt, ein wirtschaftliches oder finanzielles Gewinnziel zu verfolgen.
+
+## Weitere Bedingungen:
+
+- **Keine zusätzlichen Einschränkungen:** Du darfst nicht zusätzliche rechtliche Einschränkungen anwenden, die anderen verbieten, das Werk gemäß der Lizenz zu nutzen.
+  
+- **Keine Modifikationen:** Du darfst das Werk verändern, umwandeln oder darauf aufbauen, solange die kommerzielle Nutzung ausgeschlossen bleibt und du die Modifikationen unter den gleichen Bedingungen lizenzierst.
+
+## Haftungsausschluss
+
+Das Werk wird „wie es ist“ bereitgestellt. Der Urheber haftet nicht für etwaige Schäden, die durch die Nutzung des Werkes entstehen könnten, einschließlich direkter, indirekter oder Folgeschäden.
+
+---
+
 
 ## 12. FAQ (Häufig gestellte Fragen)
 
