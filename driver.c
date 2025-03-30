@@ -1,13 +1,3 @@
-// -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Lizenz:
-// Dieses Projekt steht unter der Creative Commons Namensnennung - Nicht-kommerziell 4.0 International (CC BY-NC 4.0) Lizenz.
-// Du darfst den Code unter den folgenden Bedingungen nutzen:
-// 1. **Namensnennung (Attribution):** Du musst den Urheber des Werkes nennen und einen Hinweis auf die Lizenz geben.
-// 2. **Nicht kommerziell (Non-commercial):** Der Code darf nicht für kommerzielle Zwecke verwendet werden.
-//
-// Weitere Informationen zur Lizenz findest du unter: https://creativecommons.org/licenses/by-nc/4.0/
-// -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 #define _CRT_SECURE_NO_WARNINGS // For Visual Studio (if sprintf/sprintf_s is used)
 #include <stdio.h>
 #include <stdlib.h>
@@ -1989,8 +1979,10 @@ int submit_kernel_command(int gpu_index, GPUCommand command, void *data) {
             // size_t max_lws; clGetKernelWorkGroupInfo(reduce_sum_kernel, device_id, CL_KERNEL_WORK_GROUP_SIZE, sizeof(max_lws), &max_lws, NULL); if(lws[0] > max_lws) lws[0] = max_lws;
 
             // Number of work-groups needed to cover the output dimension N
-            size_t num_groups = (cmd->N + lws[0] - 1) / lws[0]; // Ceiling division
-            size_t gws[1] = { num_groups * lws[0] }; // Total global size must be multiple of local size
+            // Ensure gws is a multiple of lws by rounding up the number of groups needed.
+            size_t num_groups_exact = (size_t)cmd->N; // Each group calculates one output element N
+            size_t gws[1] = { num_groups_exact * lws[0] }; // GWS = num_groups * group_size
+
 
             CHECK_CL_ERR(clEnqueueNDRangeKernel(queue, reduce_sum_kernel, 1, NULL, gws, lws, 0, NULL, NULL), "ReduceSum Axis01 Enqueue");
             return 1;
@@ -2386,7 +2378,7 @@ DLLEXPORT int execute_embedding_backward_gpu(int gpu_index, void* d_o, void* idx
 DLLEXPORT int execute_reduce_sum_gpu(int gpu_index, void* in, void* out, int B, int M, int N) {
     if (!in || !out) { fprintf(stderr, "[C] execute_reduce_sum_gpu: Invalid handles (NULL).\n"); return 0; }
      if (B <= 0 || M <= 0 || N <= 0) {
-         if ((size_t)B * M * N == 0) return 1; // Trivial if input is zero size
+         if ((size_t)B * M * N == 0 || N == 0) return 1; // Trivial if input or output is zero size
          fprintf(stderr, "[C] execute_reduce_sum_gpu: Invalid non-positive dimensions (B=%d, M=%d, N=%d).\n", B, M, N); return 0;
      }
     #ifndef WORK_GROUP_SIZE_REDUCE
@@ -2498,7 +2490,8 @@ DLLEXPORT int execute_log_softmax_stable_gpu(int gpu_index, void* input_logits, 
     int num_rows = B * S;
     LogSoftmaxStableCommandData cmd_data = { input_logits, output_log_probs, num_rows, V };
     if (!submit_kernel_command(gpu_index, COMMAND_LOG_SOFTMAX_STABLE, &cmd_data)) { fprintf(stderr, "[C] execute_log_softmax_stable_gpu: Failed to submit kernel command.\n"); return 0; }
-    return finish_queue_and_check(gpu_index, "execute_log_softmax_stable_gpu");
+    // No finish needed here, let Python manage sync
+    return 1;
 }
 
 DLLEXPORT int execute_cross_entropy_loss_grad_gpu(int gpu_index, void* log_probs, void* target_indices, void* grad_input, void* loss_per_sample, int B, int S, int V) {
@@ -2511,7 +2504,8 @@ DLLEXPORT int execute_cross_entropy_loss_grad_gpu(int gpu_index, void* log_probs
     int num_rows = B * S;
     CrossEntropyLossGradCommandData cmd_data = { log_probs, target_indices, grad_input, loss_per_sample, num_rows, V };
      if (!submit_kernel_command(gpu_index, COMMAND_CROSS_ENTROPY_LOSS_GRAD, &cmd_data)) { fprintf(stderr, "[C] execute_cross_entropy_loss_grad_gpu: Failed to submit kernel command.\n"); return 0; }
-    return finish_queue_and_check(gpu_index, "execute_cross_entropy_loss_grad_gpu");
+    // No finish needed here, let Python manage sync
+     return 1;
 }
 
 DLLEXPORT int execute_add_broadcast_pe_gpu(int gpu_index, void* input, void* pe_slice, void* output, int B, int S, int E) {
