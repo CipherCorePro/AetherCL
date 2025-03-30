@@ -129,7 +129,7 @@ graph LR
     E -- Manages Device --> D;
     E -- Compiles Kernels --> F;
     E -- Launches Kernels --> D;
-
+```
 ### Python Frontend (`ocl_framework.py`)
 
 *   **Verantwortlichkeit:** Stellt eine benutzerfreundliche Schnittstelle zur C/OpenCL-Bibliothek bereit und implementiert das Autograd-System sowie die Modellarchitektur.
