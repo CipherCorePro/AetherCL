@@ -911,8 +911,7 @@ Dieses Werk ist unter der Lizenz **Creative Commons Namensnennung - Nicht-kommer
 
 Das Werk wird „wie es ist“ bereitgestellt. Der Urheber haftet nicht für etwaige Schäden, die durch die Nutzung des Werkes entstehen könnten, einschließlich direkter, indirekter oder Folgeschäden.
 
----
-
+```
 
 ## 12. FAQ (Häufig gestellte Fragen)
 
@@ -956,6 +955,7 @@ Das Werk wird „wie es ist“ bereitgestellt. Der Urheber haftet nicht für etw
         *   **Daten:** Probleme in den Trainingsdaten (z.B. nur Padding).
         *   **Batch Size:** Zu kleine oder zu große Batch Size kann die Konvergenz beeinflussen.
         *   Versuche, `lr` zu reduzieren, `batch_size` anzupassen, die Initialisierung zu ändern oder Debug-Ausgaben hinzuzufügen.
+
 
 ## 13. Glossar
 
