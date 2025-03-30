@@ -19,7 +19,7 @@ import pickle  # Wird für das Speichern von Python-Objekten wie dicts benötigt
 from ctypes import c_void_p, c_int, c_size_t, c_float, CDLL
 
 # --- Update Version String ---
-print("--- Starting OCL LLM Framework [Ultimate Build Attempt 7 - PE GPU Add] ---")
+print("--- Starting OCL LLM Framework [Ultimate Build Attempt 8 - GPU Cross Entropy] ---") # <-- Version erhöht
 
 # --------------------------------------------------------------------------
 # 1. OpenCL-DLL binden & Globale Variablen
@@ -61,7 +61,7 @@ HAS_REDUCE_SUM = False           # Flag für Bias-Gradienten-Reduktion
 HAS_ADD_BROADCAST_PE = False     # Flag für dedizierten PE Add Kernel
 HAS_EMBEDDING_LOOKUP = False     # Flag für GPU Embedding Lookup
 HAS_EMBEDDING_BACKWARD = False   # Flag für GPU Embedding Backward (mit Atomics)
-# HAS_BROADCAST_ADD_BIAS = False  # Flag für allgemeinen Broadcast Add Kernel (optional)
+HAS_GPU_CROSS_ENTROPY = False    # Flag für GPU Cross Entropy Loss / Grad
 
 # --------------------------------------------------------------------------
 # 2. Signaturen für alle C-Funktionen definieren
@@ -134,7 +134,6 @@ try:
         ocl.execute_reduce_sum_gpu.restype = c_int
         HAS_REDUCE_SUM = True
 
-    # NEU: Signatur für AddBroadcastPE
     if hasattr(ocl, 'execute_add_broadcast_pe_gpu'):
         ocl.execute_add_broadcast_pe_gpu.argtypes = [c_int, c_void_p, c_void_p, c_void_p, c_int, c_int, c_int]  # B, S, E
         ocl.execute_add_broadcast_pe_gpu.restype = c_int
@@ -149,6 +148,19 @@ try:
         ocl.execute_transpose_12_batched_gpu.argtypes = [c_int, c_void_p, c_void_p, c_int, c_int, c_int, c_int]  # B, D1, D2, D3
         ocl.execute_transpose_12_batched_gpu.restype = c_int
         HAS_TRANSPOSE_12_BATCHED = True
+
+    # --- NEU: Signatures für Cross Entropy ---
+    if hasattr(ocl, 'execute_log_softmax_stable_gpu'):
+        ocl.execute_log_softmax_stable_gpu.argtypes = [c_int, c_void_p, c_void_p, c_int, c_int, c_int] # gpu_id, logits, log_probs, B, S, V
+        ocl.execute_log_softmax_stable_gpu.restype = c_int
+    else: print("WARN: execute_log_softmax_stable_gpu not found in DLL.") # Warnung hinzufügen
+    if hasattr(ocl, 'execute_cross_entropy_loss_grad_gpu'):
+        # Note: target_indices is int32, grad_input and loss_per_sample are FP_TYPE
+        ocl.execute_cross_entropy_loss_grad_gpu.argtypes = [c_int, c_void_p, c_void_p, c_void_p, c_void_p, c_int, c_int, c_int] # gpu_id, log_probs, targets, grad_in, loss_samp, B, S, V
+        ocl.execute_cross_entropy_loss_grad_gpu.restype = c_int
+        HAS_GPU_CROSS_ENTROPY = True # Flag setzen
+    else: print("WARN: execute_cross_entropy_loss_grad_gpu not found in DLL. Using CPU loss.") # Warnung hinzufügen
+    # ------------------------------------------
 
 except AttributeError as e:
     print(f"[ocl_framework] FATAL: Sig Error: Function signature mismatch or missing function in DLL.")
@@ -1791,15 +1803,17 @@ class AdamOptimizer:
 class TinyTokenizer:
     def __init__(self, vocab=None, inv_vocab=None):
         if vocab and inv_vocab:
-            self._vocab, self._inv_vocab = vocab, inv_vocab
+            self._vocab = vocab
+            self._inv_vocab = inv_vocab
         else:
-            chars = sorted(list(set("abcdefghijklmnopqrstuvwxyz0123456789 .,!?'\n\"-()")))
-            self._vocab = {ch: i+1 for i, ch in enumerate(chars)}
-            self._vocab["<pad>"] = 0
+            # Füge Umlaute und ß hinzu
+            chars = sorted(list(set("abcdefghijklmnopqrstuvwxyz0123456789 .,!?'\n\"-()äöüß")))
+            self._vocab = {ch: i+1 for i, ch in enumerate(chars)};
+            self._vocab["<pad>"] = 0;
             self._vocab["<unk>"] = len(self._vocab)
             self._inv_vocab = {i: ch for ch, i in self._vocab.items()}
         self.vocab_size = len(self._vocab)
-        print(f"[Tokenizer] Char vocab size: {self.vocab_size}")
+        print(f"[Tokenizer] Char vocab size: {self.vocab_size}") # Wird jetzt größer sein
     def encode(self, text, max_len):
         ids = [self._vocab.get(ch, self._vocab["<unk>"]) for ch in text.lower()][:max_len]
         padding = [self._vocab["<pad>"]] * (max_len - len(ids))
@@ -1813,46 +1827,169 @@ class TinyTokenizer:
         return self._inv_vocab.copy()
 
 # --------------------------------------------------------------------------
-# 11. Loss Funktion & Backward Start (CPU) (unverändert)
+# 11. Loss Funktion & Backward Start (ANGEPASST FÜR GPU)
 # --------------------------------------------------------------------------
 def cross_entropy_loss_and_backward(logits: OclTensor, target_ids: np.ndarray):
+    """
+    Calculates Cross Entropy Loss and initiates backward pass using GPU kernels
+    if available, otherwise falls back to CPU.
+
+    Args:
+        logits (OclTensor): The raw output logits from the model (Shape: B, S, V).
+        target_ids (np.ndarray): Target class indices (Shape: B, S, dtype=int32).
+
+    Returns:
+        float: The average cross entropy loss over valid (non-padding) tokens.
+    """
+    global HAS_GPU_CROSS_ENTROPY # Access the global flag
+
     if logits.numel == 0 or target_ids.size == 0:
+        print("WARN: cross_entropy_loss_and_backward called with empty tensors.")
         return 0.0
-    logits_host = logits.to_host()
-    b, s, v = logits_host.shape
-    if target_ids.shape != (b, s):
+
+    B, S, V = logits.shape
+    if target_ids.shape != (B, S):
         raise ValueError(f"Target shape {target_ids.shape} mismatch logits {logits.shape[:2]}")
-    logits_flat = logits_host.reshape(-1, v)
-    targets_flat = target_ids.reshape(-1)
-    N = logits_flat.shape[0]
-    logits_stable = logits_flat - np.max(logits_flat, axis=1, keepdims=True)
-    exp_logits = np.exp(logits_stable)
-    probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
-    eps = 1e-9
-    target_idx = np.arange(N)
-    valid_mask = (targets_flat != 0)
+
+    # Ensure target_ids have the correct type (int32)
+    if target_ids.dtype != np.int32:
+        target_ids = target_ids.astype(np.int32)
+
+    # --- Prepare Target IDs and Mask on CPU ---
+    target_ids_flat = target_ids.reshape(-1)
+    # Assuming padding ID is 0, create mask for valid tokens
+    padding_id = 0
+    valid_mask = (target_ids_flat != padding_id)
     num_valid = np.sum(valid_mask)
-    correct_probs = probs[target_idx[valid_mask], targets_flat[valid_mask]]
-    correct_logprobs = -np.log(correct_probs + eps)
-    loss = np.sum(correct_logprobs) / num_valid if num_valid > 0 else 0.0
-    grad_logits_flat = probs.copy()
-    grad_logits_flat[target_idx[valid_mask], targets_flat[valid_mask]] -= 1
-    grad_logits_flat /= num_valid if num_valid > 0 else 1.0
-    grad_logits_flat[~valid_mask, :] = 0
-    grad_logits_host = grad_logits_flat.reshape(b, s, v).astype(FP_TYPE)
-    grad_logits_tensor = None
-    try:
-        grad_logits_tensor = OclTensor(grad_logits_host)
-        if OclTensor._enable_grad and logits.requires_grad:
-            if not hasattr(logits, '_ctx') or logits._ctx is None:
-                print(f"WARN LossBW: logits tensor {id(logits)} has no context!")
-                sys.stdout.flush()
-            else:
-                logits.backward(gradient=grad_logits_tensor)
-    finally:
-        if grad_logits_tensor:
-            grad_logits_tensor.free_memory()
-    return float(loss)
+    if num_valid == 0:
+        print("WARN: No valid target tokens found in cross_entropy_loss_and_backward (all padding?).")
+        # No gradients to compute, return 0 loss.
+        # Ensure the backward pass doesn't run with invalid gradients if requires_grad is True.
+        # This can be done by simply returning, as no gradient will be accumulated or passed back.
+        return 0.0
+    # --- End CPU Prep ---
+
+    # --- GPU PATH ---
+    if HAS_GPU_CROSS_ENTROPY:
+        # --- Allocate Temporary GPU Buffers ---
+        log_probs_gpu = None
+        target_ids_gpu = None
+        grad_input_gpu = None
+        loss_per_sample_gpu = None
+        grad_tensor = None
+        grad_tensor_normalized = None # Tensor for the normalized gradient
+
+        try:
+            num_rows = B * S # Total number of samples/tokens
+
+            # Allocate buffer for log probabilities (same size as logits)
+            log_probs_gpu = GPUBuffer(logits.nbytes, "temp_log_probs", dtype=FP_TYPE)
+            # Allocate buffer for target indices (int32)
+            target_dtype = np.int32
+            target_itemsize = np.dtype(target_dtype).itemsize
+            target_ids_gpu = GPUBuffer(num_rows * target_itemsize, "temp_target_ids", dtype=target_dtype)
+            # Allocate buffer for gradient w.r.t logits (same size as logits)
+            grad_input_gpu = GPUBuffer(logits.nbytes, "temp_grad_input", dtype=FP_TYPE)
+            # Allocate buffer for per-sample loss (float32)
+            loss_per_sample_gpu = GPUBuffer(num_rows * FP_SIZE, "temp_loss_per_sample", dtype=FP_TYPE)
+
+            # --- Transfer Target IDs to GPU ---
+            if not target_ids_gpu or not target_ids_gpu._allocated: raise MemoryError("Failed alloc target_ids_gpu")
+            target_ids_gpu.write(target_ids_flat)
+
+            # --- Execute LogSoftmax Kernel ---
+            if not log_probs_gpu or not log_probs_gpu._allocated: raise MemoryError("Failed alloc log_probs_gpu")
+            check_success(
+                ocl.execute_log_softmax_stable_gpu(
+                    GPU_ID, logits.data.ptr, log_probs_gpu.ptr, B, S, V
+                ), "log_softmax_stable_gpu"
+            )
+
+            # --- Execute Cross Entropy Loss & Gradient Kernel ---
+            if not grad_input_gpu or not grad_input_gpu._allocated: raise MemoryError("Failed alloc grad_input_gpu")
+            if not loss_per_sample_gpu or not loss_per_sample_gpu._allocated: raise MemoryError("Failed alloc loss_per_sample_gpu")
+
+            check_success(
+                 ocl.execute_cross_entropy_loss_grad_gpu(
+                     GPU_ID, log_probs_gpu.ptr, target_ids_gpu.ptr,
+                     grad_input_gpu.ptr, loss_per_sample_gpu.ptr,
+                     B, S, V
+                 ), "cross_entropy_loss_grad_gpu"
+             )
+
+            # --- Read Loss Back and Calculate Average ---
+            loss_host = loss_per_sample_gpu.read((num_rows,), dtype=FP_TYPE)
+            # Sum only the losses corresponding to valid (non-padding) tokens
+            scalar_loss = np.sum(loss_host[valid_mask]) / num_valid
+
+            # --- Prepare Gradient Tensor and Initiate Backward Pass ---
+            if OclTensor._enable_grad and logits.requires_grad:
+                # Create an OclTensor that wraps the GPU gradient buffer (no copy)
+                grad_tensor = OclTensor(np.empty(0, dtype=FP_TYPE), # Empty numpy array
+                                        requires_grad=False,
+                                        _gpu_buffer=grad_input_gpu, # Use the existing buffer!
+                                        _shape=logits.shape)
+
+                # Normalize the gradient by the number of valid tokens
+                # Perform scaling on GPU: grad = grad * (1.0 / num_valid)
+                norm_factor = 1.0 / float(num_valid)
+                grad_tensor_normalized = grad_tensor.mul_scalar(norm_factor) # Creates new tensor/buffer
+
+                # Initiate backward pass with the normalized gradient tensor
+                if not hasattr(logits, '_ctx') or logits._ctx is None:
+                     print(f"WARN GPU LossBW: logits tensor {id(logits)} has no context! Cannot call backward.")
+                else:
+                    logits.backward(gradient=grad_tensor_normalized)
+
+            return float(scalar_loss)
+
+        finally:
+            # --- Cleanup Temporary GPU Buffers ---
+            if log_probs_gpu: log_probs_gpu.free()
+            if target_ids_gpu: target_ids_gpu.free()
+            if loss_per_sample_gpu: loss_per_sample_gpu.free()
+            if grad_tensor_normalized: grad_tensor_normalized.free_memory()
+            # grad_input_gpu buffer is owned by grad_tensor. Freeing grad_tensor frees the buffer.
+            if grad_tensor: grad_tensor.free_memory()
+
+    # --- CPU PATH (Fallback) ---
+    else:
+        # print(">> Using CPU Cross Entropy Loss <<") # Optional: Indicate fallback
+        logits_host = logits.to_host()
+        # --- Restliche CPU-Berechnung (unverändert) ---
+        logits_flat = logits_host.reshape(-1, V)
+        N = logits_flat.shape[0]
+        logits_stable = logits_flat - np.max(logits_flat, axis=1, keepdims=True)
+        exp_logits = np.exp(logits_stable)
+        probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+        eps = 1e-9
+        target_idx = np.arange(N)
+        # valid_mask und num_valid sind bereits von oben berechnet
+        correct_probs = probs[target_idx[valid_mask], targets_flat[valid_mask]]
+        correct_logprobs = -np.log(correct_probs + eps)
+        loss = np.sum(correct_logprobs) / num_valid
+
+        grad_logits_flat = probs.copy()
+        grad_logits_flat[target_idx[valid_mask], targets_flat[valid_mask]] -= 1
+        grad_logits_flat /= num_valid # Normalize gradient by num_valid
+        grad_logits_flat[~valid_mask, :] = 0 # Zero out gradients for padding tokens
+        grad_logits_host = grad_logits_flat.reshape(B, S, V).astype(FP_TYPE)
+
+        grad_logits_tensor = None
+        try:
+            # Only create tensor and call backward if gradients are enabled
+            if OclTensor._enable_grad and logits.requires_grad:
+                grad_logits_tensor = OclTensor(grad_logits_host)
+                if not hasattr(logits, '_ctx') or logits._ctx is None:
+                    print(f"WARN CPU LossBW: logits tensor {id(logits)} has no context! Cannot call backward.")
+                else:
+                    logits.backward(gradient=grad_logits_tensor)
+        finally:
+            if grad_logits_tensor:
+                grad_logits_tensor.free_memory() # Free temporary tensor
+
+        return float(loss)
+
 
 # --------------------------------------------------------------------------
 # 12. Init / Shutdown / Cleanup Funktionen (ocl_initialize prüft jetzt mehr Flags)
@@ -1887,7 +2024,11 @@ def cleanup_registered_tensors():
     _global_weak_tensor_refs.clear()
     print(f"[Cleanup] Freed {count} tensors.")
 def ocl_initialize(device_index=0):
-    global LayerNormBackwardContext, GPU_ID, HAS_BMM_BATCHED, HAS_TRANSPOSE_LAST_TWO, HAS_TRANSPOSE_12_BATCHED, HAS_REDUCE_SUM, HAS_ADD_BROADCAST_PE, HAS_EMBEDDING_LOOKUP, HAS_EMBEDDING_BACKWARD
+    # Update global list to include the new flag
+    global LayerNormBackwardContext, GPU_ID, HAS_BMM_BATCHED, HAS_TRANSPOSE_LAST_TWO, \
+           HAS_TRANSPOSE_12_BATCHED, HAS_REDUCE_SUM, HAS_ADD_BROADCAST_PE, \
+           HAS_EMBEDDING_LOOKUP, HAS_EMBEDDING_BACKWARD, HAS_GPU_CROSS_ENTROPY
+
     if OclTensor._ocl_initialized:
         print("[ocl_init] Already initialized.")
         return True
@@ -1925,6 +2066,7 @@ def ocl_initialize(device_index=0):
         print(f"  - AddBroadcastPE (PosEnc): {'YES' if HAS_ADD_BROADCAST_PE else 'NO (CPU fallback)'}")
         print(f"  - Embedding Lookup GPU: {'YES' if HAS_EMBEDDING_LOOKUP else 'NO (CPU only)'}")
         print(f"  - Embedding Backward GPU: {'YES' if HAS_EMBEDDING_BACKWARD else 'NO (CPU only)'}")
+        print(f"  - Cross Entropy GPU: {'YES' if HAS_GPU_CROSS_ENTROPY else 'NO (CPU only)'}") # <-- NEUE Flag Ausgabe
         return True
     except Exception as e:
         print(f"[ocl_init] FATAL Initialization Error: {e}")
@@ -2038,19 +2180,20 @@ def load_checkpoint(filename):
 # 14. Trainings- und Hilfsfunktionen (print_config angepasst)
 # --------------------------------------------------------------------------
 def print_config(config):
-    print("\n--- Training Configuration [Ultimate Attempt 7 - PE GPU Add] ---")
+    print("\n--- Training Configuration [Ultimate Attempt 8 - GPU Cross Entropy] ---") # <-- Version
     print(f" Model: {config['num_layers']}L | Embed:{config['embed_dim']} | Heads:{config['num_heads']} | dFF:{config['d_ff']}")
     print(f" Data: Vocab Size:{config['vocab_size']} | Max Seq Len:{config['max_len']}")
     print(f" Train: Batch Size:{config['batch_size']} | Epochs:{config['num_epochs']} | LR:{config['lr']:.1e} | WeightDecay:{config['wd']}")
     print(f" Precision: FP Type:{FP_TYPE.__name__} | Adam State:{ADAM_STATE_TYPE.__name__}")
     print(f" GPU Kernels Found:")
-    print(f"  - BMM Batched: {'YES' if HAS_BMM_BATCHED else 'NO (CPU fallback)'}")
+    print(f"  - Batched MatMul: {'YES' if HAS_BMM_BATCHED else 'NO (CPU fallback)'}")
     print(f"  - Transpose Last Two (-2,-1): {'YES' if HAS_TRANSPOSE_LAST_TWO else 'NO (CPU fallback)'}")
     print(f"  - Transpose 1<->2 (4D): {'YES' if HAS_TRANSPOSE_12_BATCHED else 'NO (CPU fallback)'}")
     print(f"  - ReduceSum (Bias Grad): {'YES' if HAS_REDUCE_SUM else 'NO (CPU fallback)'}")
     print(f"  - AddBroadcastPE (PosEnc): {'YES' if HAS_ADD_BROADCAST_PE else 'NO (CPU fallback)'}")
     print(f"  - Embedding Lookup GPU: {'YES' if HAS_EMBEDDING_LOOKUP else 'NO (CPU only)'}")
     print(f"  - Embedding Backward GPU: {'YES' if HAS_EMBEDDING_BACKWARD else 'NO (CPU only)'}")
+    print(f"  - Cross Entropy GPU: {'YES' if HAS_GPU_CROSS_ENTROPY else 'NO (CPU only)'}") # <-- NEUE Flag Ausgabe
     print("-" * 50)
     print(" Known Limitations / Workarounds:")
     if not HAS_EMBEDDING_LOOKUP or not HAS_EMBEDDING_BACKWARD:
@@ -2059,7 +2202,8 @@ def print_config(config):
         print("  - CPU Bias Gradient Reduction")
     if not HAS_TRANSPOSE_LAST_TWO or not HAS_TRANSPOSE_12_BATCHED:
         print("  - CPU Transpose for some dimension swaps")
-    print("  - CPU Cross Entropy Loss Calculation & Grad Input")
+    if not HAS_GPU_CROSS_ENTROPY:
+        print("  - CPU Cross Entropy Loss Calculation & Grad Input") # <-- Angepasst
     print("  - No Dropout Layers implemented")
     print("-" * 50 + "\n")
 
@@ -2094,10 +2238,18 @@ def run_inference(model, tokenizer, max_len):
 def train(load_checkpoint_path=None, save_checkpoint_dir="."):
     # --- Standard Config ---
     config = {
-        'max_len': 64, 'batch_size': 16, 'embed_dim': 64, 'num_heads': 4,
-        'd_ff': 64 * 4, 'num_layers': 1, 'lr': 5e-4, 'num_epochs': 10, # Erhöhe num_epochs zum Testen
-        'wd': 0.01, 'val_split': 0.1, 'data_file': "input.txt",
-        'checkpoint_filename': "best_model.npz" # Default filename
+        'max_len': 64,
+        'batch_size': 16, # Eventuell anpassen je nach GPU-Speicher
+        'embed_dim': 16,
+        'num_heads': 4,
+        'd_ff': 64 * 4,
+        'num_layers': 6, # Oder mehr Layer
+        'lr': 3e-4,
+        'num_epochs': 20, # Oder mehr Epochen
+        'wd': 0.02,
+        'val_split': 0.1,
+        'data_file': "input.txt", # <--- HIER ÄNDERN
+        'checkpoint_filename': "test_model.npz" # Optional: Neuer Checkpoint-Name
     }
     # Diese Werte werden beim Laden überschrieben
     start_epoch = 1
@@ -2227,7 +2379,7 @@ def train(load_checkpoint_path=None, save_checkpoint_dir="."):
                     # print(f"  Val Batch {val_batch_num}: Fwd Start"); sys.stdout.flush() # DEBUG
                     val_output_tensor = model(input_b)
                     # print(f"  Val Batch {val_batch_num}: Fwd End / Loss Start"); sys.stdout.flush() # DEBUG
-                    loss = cross_entropy_loss_and_backward(val_output_tensor, target_b) # No backward
+                    loss = cross_entropy_loss_and_backward(val_output_tensor, target_b) # No backward needed for validation
                     # print(f"  Val Batch {val_batch_num}: Loss End (Loss={loss:.4f})"); sys.stdout.flush() # DEBUG
                     if np.isnan(loss) or np.isinf(loss):
                         print(f"WARN: NaN/Inf validation loss ({loss}). Setting Val Loss to Inf."); sys.stdout.flush()
@@ -2240,7 +2392,7 @@ def train(load_checkpoint_path=None, save_checkpoint_dir="."):
                     # print(f"  Val Batch {val_batch_num}: Free Output Start"); sys.stdout.flush() # DEBUG
                     if val_output_tensor: val_output_tensor.free_memory(); val_output_tensor = None
                     # print(f"  Val Batch {val_batch_num}: Free Output End / Batch End"); sys.stdout.flush() # DEBUG
-            OclTensor._enable_grad = True # Re-enable grad
+            OclTensor._enable_grad = True # Re-enable grad for next training epoch
             avg_val_loss = epoch_val_loss / num_val_samples if num_val_samples > 0 and np.isfinite(epoch_val_loss) else float('inf')
             print(f"--- Epoch {epoch} Validation End (AvgLoss={avg_val_loss:.5f}) ---"); sys.stdout.flush() # DEBUG: Val End
 
