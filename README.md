@@ -117,18 +117,18 @@ Das Projekt ist in zwei Hauptschichten unterteilt:
 
 ```mermaid
 graph LR
-    A[Python Frontend (ocl_framework.py)] -- ctypes --> B(C Backend driver.dll / .so);
+    A[Python Frontend] -- ctypes --> B(C Backend);
     B -- OpenCL API --> C{OpenCL Driver};
     C -- Executes Kernels --> D[GPU Device];
 
-    subgraph C Backend Internal Structure
+    subgraph C Backend Internal
         B --- E[Host Code C];
-        B --- F[Kernel Source Strings];
+        B --- F[Kernel Strings];
     end
 
-    E -- Manages Device --> D;
-    E -- Compiles Kernels --> F;
-    E -- Launches Kernels --> D;
+    E -- Manages --> D;
+    E -- Compiles --> F;
+    E -- Launches --> D;
 ```
 ### Python Frontend (`ocl_framework.py`)
 
